@@ -33,14 +33,14 @@ sys.path.append(str(current_directory))
 warnings.filterwarnings("ignore")
 st.config.set_option("deprecation.showPyplotGlobalUse", False)
 st.set_page_config(
-    page_title="Analisis Sentimen",
-    page_icon="📊",
+    page_title="ANPR Yolo5 & EasyOCR",
+    page_icon="🚗",
     layout="wide",
     initial_sidebar_state="expanded",
     menu_items={
         'Get Help': 'https://www.extremelycoolapp.com/help',
         'Report a bug': "https://www.extremelycoolapp.com/bug",
-        'About': "Analisis Sentimen Kanjuruhan Malang"
+        'About': "ANPR Yolo5 & EasyOCR"
     }
 )
 
@@ -55,20 +55,21 @@ except ModuleNotFoundError:
     st.warning("Error: Module not found. Check file names and paths.")
 
         
-with st.sidebar:
-    selected = option_menu("Menu",["Upload Image","Database","Training & Testing","Predict","ANPR"],
-                           icons=['cloud-upload', 'database-fill-check','gear','images', 'file-earmark-arrow-up'], menu_icon="cast",
-                           default_index=0, styles={
-        "container": {"padding": "5!important", "padding-top":"0px"},
-        "nav-link": {"font-size": "16px", "text-align": "left", "margin":"5px"},
-    })
+
+selected = option_menu(menu_title=None,options=["Upload Image","Database","Training & Testing","Predict","ANPR"],orientation='horizontal',
+                        icons=['cloud-upload', 'database-fill-check','gear','images', 'file-earmark-arrow-up'], menu_icon="cast",
+                        default_index=0)
 
 if selected == "Upload Image":
+    #title center
+    st.markdown("<h1 style='text-align: center; color: White;'>ANPR Yolo5 & EasyOCR</h1>", unsafe_allow_html=True)
     st.title('ANPR Database Operations')
     st.write('Upload images to perform ANPR on them.')
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
+        #resize image
+        # image = image.resize((720, 720))
         path_image= "./DATASET_PLAT_389/"
         col1, col2,col3 = st.columns(3)
         with col1:
@@ -76,21 +77,20 @@ if selected == "Upload Image":
         with col2:
             st.image(image, caption="Uploaded Image", use_column_width=True)
             selected_folder = st.selectbox("Pilih Folder", ['K1', 'K2', 'K3', 'K4'])
-            name_img = st.text_input("Filename", value=uploaded_file.name)
+            name_img = st.text_input("Filename (TANPA EKSTENSI)", value=uploaded_file.name)
             class_img = st.text_input("Kelas", value=selected_folder)
             if st.button("Upload"):
-                db = connect_db()
-                db.create_record(name_img, class_img)
                 with st.spinner("Uploading..."):
-                    image = Image.open(uploaded_file)
-                    image = np.array(image)
-                    image = cv2.resize(image, (720, 720))
-                    cv2.imwrite(path_image+selected_folder+'/'+uploaded_file.name, image)
-                    st.success("Image Uploaded successfully!")
+                    db = connect_db()
+                    db.create_record(path_image,selected_folder,name_img,class_img)
+                    image.save(os.path.join(path_image, selected_folder, name_img))
+                    st.success(f"Image Uploaded successfully to {path_image}/{selected_folder}/{name_img}!")
         with col3:
             st.empty()
     
 if selected == "Database":
+    #title center
+    st.markdown("<h1 style='text-align: center; color: White;'>ANPR Yolo5 & EasyOCR</h1>", unsafe_allow_html=True)
     st.title('ANPR Database Operations')
     st.write("Perform CRUD operations on the database.")
 
@@ -125,9 +125,15 @@ if selected == "Database":
 
     # Pilihan gambar untuk update atau delete
     page_number = st.number_input("Section", min_value=1, max_value=(len(all_image_files) // 20) + 1, value=1, step=1)
-
     start_index = (page_number - 1) * 20
     end_index = min(page_number * 20, len(all_image_files))
+
+    # Organize images into rows of five
+    rows_of_images = [all_image_files[i:i+5] for i in range(start_index, end_index, 5)]
+
+    # Display each row of images
+    for row_images in rows_of_images:
+        st.image([os.path.join(folder_path_for_update_delete, image) for image in row_images], width=250, caption=row_images)
 
     table_data = {"Filename": [file.split(".")[0] for file in all_image_files[start_index:end_index]],
                   "Format": [file.split(".")[-1] for file in all_image_files[start_index:end_index]]}
@@ -140,17 +146,25 @@ if selected == "Database":
         st.subheader("Update Image")
         # Pilih gambar untuk diupdate
         selected_image_for_update = st.selectbox("Pick image to be updated", table_data["Filename"])
-
+        if selected_image_for_update is not None:
+            db = connect_db()
+            #read record if exist and get ID
+            get_id = db.read_record(selected_image_for_update)
+                
         # Form untuk mengupdate Filename
         new_file_name = st.text_input("New Filename (Without Extention)", selected_image_for_update)
-
+        # Show a selectbox to choose the folder
+        new_class = st.selectbox("Choose folder to Update", ['K1', 'K2', 'K3', 'K4'], index=folders.index(update_delete_folder))
         # Tampilkan tombol update
         update_button = st.button("Update")
 
         if update_button:
+            if get_id is not None:
+                db.update_record(get_id[0],new_file_name,new_class)
             # Lakukan pembaruan Filename
             old_file_path = os.path.join(folder_path_for_update_delete, f"{selected_image_for_update}.jpg")
-            new_file_path = os.path.join(folder_path_for_update_delete, f"{new_file_name}.jpg")
+            path_image= "./DATASET_PLAT_389/"
+            new_file_path = os.path.join(path_image, new_class, f"{new_file_name}.jpg")
 
             os.rename(old_file_path, new_file_path)
             st.success(f"Image Name {selected_image_for_update} updated to {new_file_name}.jpg")
@@ -165,11 +179,18 @@ if selected == "Database":
 
         if delete_button:
             # Hapus gambar jika tombol di tekan
+            db = connect_db()
+            #read record if exist and get ID
+            get_id = db.read_record(selected_image_for_update_delete)
+            if get_id is not None:
+                db.delete_record(get_id[0])
             os.remove(os.path.join(folder_path_for_update_delete, selected_image_for_update_delete + ".jpg"))
             st.success(f"Image {selected_image_for_update_delete} successfully deleted.")
     
 
 if selected == "Training & Testing":
+    #title center
+    st.markdown("<h1 style='text-align: center; color: White;'>ANPR Yolo5 & EasyOCR</h1>", unsafe_allow_html=True)
     st.title('Training & Testing Yolo5')   
     if 'trainer' not in st.session_state:
         st.session_state.trainer = None
@@ -194,7 +215,9 @@ if selected == "Training & Testing":
             st.success("Training started. Please check the Colab notebook for progress.")
 
 
-if selected =='Predict':       
+if selected =='Predict':
+    #title center
+    st.markdown("<h1 style='text-align: center; color: White;'>ANPR Yolo5 & EasyOCR</h1>", unsafe_allow_html=True)   
     st.title('Predict with YOLOv5 & EasyOCR')
     anpr = ANPR()
 
@@ -206,16 +229,21 @@ if selected =='Predict':
         col1, col2 = st.columns(2)
         with col1:
             st.image(image, caption="Uploaded Image", use_column_width=True)
-        with col2:
             resized_image = None
             annotated_image = None
-            if st.button('Predict'):
+            st.subheader("Click to Predict with YOLOv5")
+            button_pred = st.button("Predict")
+        with col2:
+            if button_pred:
                 with st.spinner("Predicting..."):
                     model_path = "best_V5.pt"  # Replace this with your model's path
                     resized_image, annotated_image,result_anpr = anpr.predict_image(image_in, model_path=model_path)
                 st.text_input("Hasil ANPR", value=result_anpr)
                 st.success("Prediction complete!")
-if selected == 'ANPR':   
+
+if selected == 'ANPR':
+    #title center
+    st.markdown("<h1 style='text-align: center; color: White;'>ANPR Yolo5 & EasyOCR</h1>", unsafe_allow_html=True)   
     st.title('ANPR for Multiple Images')
     st.write('Upload images to perform ANPR on them.')
 
@@ -225,8 +253,8 @@ if selected == 'ANPR':
     uploaded_files = st.file_uploader("Choose image(s) to process...", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
     if uploaded_files is not None:
-        all_results = []
         if st.button("Predict All"):
+            all_results = []
             with st.spinner("Predicting..."):
                 images_count = len(uploaded_files)
                 images_per_row = 4
@@ -253,5 +281,5 @@ if selected == 'ANPR':
             for result in all_results:
                 results_text += f"Filename {result['Image']} => Prediction {result['Prediction']}\n"
             dt_now = dt.datetime.now().strftime("%d-%m-%Y_%H-%M")
-            st.download_button(label="Download Results", data=result_text, file_name=f"results_{images_count}_{dt_now}.txt", mime="text/plain")
+            st.download_button(label="Download Results", data=results_text, file_name=f"results_{images_count}_{dt_now}.txt", mime="text/plain")
             st.dataframe(all_results)

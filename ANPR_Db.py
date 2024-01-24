@@ -1,6 +1,6 @@
 import mysql.connector
 import streamlit as st
-import os
+
 @st.cache_resource()
 class connect_db():
     def __init__(self):
@@ -12,40 +12,28 @@ class connect_db():
         )
         self.cursor = self.connection.cursor()
 
-    def create_record(self, filename, class_name):
-        sql = "INSERT INTO `image_dataset` (`filename`, `class`) VALUES (%s, %s)"
-        val = (filename, class_name)
+    def create_record(self,path, folder, filename, class_name):
+        sql = "INSERT INTO `image_dataset` (`path`, `folder`, `filename`, `class`) VALUES (%s, %s, %s, %s)"
+        val = (path,folder, filename, class_name)
         self.cursor.execute(sql, val)
         self.connection.commit()
         st.success("Record inserted successfully.")
-        
-    def read_all_records(self):
-        sql = "SELECT * FROM `image_dataset`"
-        self.cursor.execute(sql)
-        records = self.cursor.fetchall()
-        if records:
-            st.success("Records found")
-        else:
-            st.warning("Records not found.")
-            
-    def read_record(self, id):
-        sql = "SELECT * FROM `image_dataset` WHERE `id` = %s"
-        self.cursor.execute(sql, (id,))
+                    
+    def read_record(self, filename):
+        sql = "SELECT * FROM `image_dataset` WHERE `filename` = %s LIMIT 1"
+        self.cursor.execute(sql, (filename,))
         record = self.cursor.fetchone()
-        if record:
-            st.success("Record found:", record)
-        else:
-            st.warning("Record not found.")
+        return record
 
     def update_record(self, id, new_filename, new_class_name):
-        sql = "UPDATE `image_dataset` SET `filename` = %s, `class` = %s WHERE `id` = %s"
-        val = (new_filename, new_class_name, id)
+        sql = "UPDATE `image_dataset` SET `folder` = %s, `filename` = %s, `class` = %s WHERE `id` = %s LIMIT 1"
+        val = (new_class_name,new_filename, new_class_name, id)
         self.cursor.execute(sql, val)
         self.connection.commit()
         st.success("Record updated successfully.")
 
     def delete_record(self, id):
-        sql = "DELETE FROM `image_dataset` WHERE `id` = %s"
+        sql = "DELETE FROM `image_dataset` WHERE `id` = %s LIMIT 1"
         self.cursor.execute(sql, (id,))
         self.connection.commit()
         st.success("Record deleted successfully.")
